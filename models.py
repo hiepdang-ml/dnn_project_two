@@ -192,7 +192,8 @@ class VisionTransformer(nn.Module):
         output: torch.Tensor = output + self.pos_embedding
         output: torch.Tensor = self.encoder(output)
         assert output.shape == (batch_size, self.patch_embedding.n_patches, self.embedding_dim)
-        output: torch.Tensor = F.sigmoid(torch.einsum('bne,neo->bo', output, self.mlp_head))
+        output: torch.Tensor = torch.einsum('bne,neo->bo', output, self.mlp_head)
+        # output: torch.Tensor = F.sigmoid(torch.einsum('bne,neo->bo', output, self.mlp_head))
         output: torch.Tensor = output.reshape(batch_size, 6, 2)
         return self.orthogonalizer(output)
         

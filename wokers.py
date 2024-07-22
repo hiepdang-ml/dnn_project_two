@@ -14,7 +14,6 @@ from datasets import LabeledDogHeartDataset, UnlabeledDogHeartDataset
 from functional import plot_predictions, compute_vhs
 
 
-
 class Trainer:
 
     def __init__(
@@ -66,38 +65,38 @@ class Trainer:
                 pred_targets: torch.Tensor = self.model(input=batch_images)
                 print(f'gt_targets {batch_sixpoints[-1]}')
                 print(f'pred_targets {pred_targets[-1]}')
-                loss = self.loss_function(input=pred_targets, target=batch_sixpoints)
-                loss.backward()
+                mse_loss = self.loss_function(input=pred_targets, target=batch_sixpoints)
+                mse_loss.backward()
                 self.optimizer.step()
 
                 # Accumulate the metrics
-                train_metrics.add(loss=loss.item())
+                train_metrics.add(mse_loss=mse_loss.item())
                 timer.end_batch(epoch=epoch)
                 logger.log(
                     epoch=epoch, n_epochs=n_epochs, 
                     batch=batch, n_batches=len(self.train_dataloader), 
                     took=timer.time_batch(epoch, batch), 
-                    train_loss=train_metrics['loss'] / batch, 
+                    train_mse_loss=train_metrics['mse_loss'] / batch, 
                 )
 
             # Ragularly save checkpoint
-            if checkpoint_path and epoch % 5 == 0:
+            if checkpoint_path and epoch % 50 == 0:
                 checkpoint_saver.save(self.model, filename=f'epoch{epoch}.pt')
             
             # Reset metric records for next epoch
             train_metrics.reset()
             
             # Evaluate
-            val_loss = self.evaluate()
+            val_mse_loss = self.evaluate()
             timer.end_epoch(epoch)
             logger.log(
                 epoch=epoch, n_epochs=n_epochs, 
                 took=timer.time_epoch(epoch), 
-                val_loss=val_loss,
+                val_mse_loss=val_mse_loss,
             )
             print('=' * 20)
 
-            early_stopping(val_loss)
+            early_stopping(val_mse_loss)
             if early_stopping:
                 print('Early Stopped')
                 break
@@ -107,7 +106,7 @@ class Trainer:
             checkpoint_saver.save(self.model, filename=f'epoch{epoch}.pt')
 
     def evaluate(self) -> float:
-        metrics = Accumulator()
+        val_metrics = Accumulator()
         self.model.eval()
         with torch.no_grad():
             # Loop through each batch
@@ -115,12 +114,12 @@ class Trainer:
                 batch_images: torch.Tensor = batch_images.to(device=self.device)
                 batch_sixpoints: torch.Tensor = batch_sixpoints.to(device=self.device)
                 pred_targets: torch.Tensor = self.model(input=batch_images)
-                loss = self.loss_function(input=pred_targets, target=batch_sixpoints)
-                # Accumulate the metrics
-                metrics.add(val_loss=loss.item())
+                mse_loss = self.loss_function(input=pred_targets, target=batch_sixpoints)
+                # Accumulate the val_metrics
+                val_metrics.add(mse_loss=mse_loss.item())
 
         # Compute the aggregate metrics
-        return metrics['val_loss'] / batch
+        return val_metrics['mse_loss'] / batch
 
 
 class Predictor:
