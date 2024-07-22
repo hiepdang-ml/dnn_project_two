@@ -17,14 +17,12 @@ class VHSClassificationLoss(nn.Module):
     def forward(self, pred_vhs: torch.Tensor, gt_label: torch.Tensor) -> torch.Tensor:
         assert pred_vhs.shape == gt_label.shape     # (batch_size, 1)
         batch_size: int = pred_vhs.shape[0]
-        epsilon: float = 1e-5
-        scores_0: torch.Tensor = 1. / torch.abs(pred_vhs - 0.).clamp(min=epsilon)
-        scores_1: torch.Tensor = 1. / torch.abs(pred_vhs - (self.threshold1 + self.threshold2) / 2.).clamp(min=epsilon)
-        scores_2: torch.Tensor = 1. / torch.abs(pred_vhs - (self.threshold1 + self.threshold2)).clamp(min=epsilon)
+        midpoint: float = (self.threshold1 + self.threshold2) / 2.
+        delta: float = midpoint - self.threshold1
+        scores_0: torch.Tensor = - torch.abs(pred_vhs - (self.threshold1 - delta))
+        scores_1: torch.Tensor = - torch.abs(pred_vhs - midpoint)
+        scores_2: torch.Tensor = - torch.abs(pred_vhs - (self.threshold2 + delta))
 
-        # scores_0: torch.Tensor = 1. / torch.abs(pred_vhs - (self.threshold1 + 0.) / 2.).clamp(min=epsilon)
-        # scores_1: torch.Tensor = 1. / torch.abs(pred_vhs - (self.threshold1 + self.threshold2) / 2.).clamp(min=epsilon)
-        # scores_2: torch.Tensor = 1. / torch.abs(pred_vhs - (self.threshold2 + 20.) / 2.).clamp(min=epsilon)
         score_matrix: torch.Tensor = torch.cat(tensors=[scores_0, scores_1, scores_2], dim=1)
         assert score_matrix.shape == (batch_size, 3)
         return F.cross_entropy(input=score_matrix, target=gt_label.reshape(-1), reduction='mean')

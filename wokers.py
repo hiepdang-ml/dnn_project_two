@@ -11,7 +11,6 @@ from torch.optim import Optimizer
 
 from utils import Accumulator, EarlyStopping, Timer, Logger, CheckPointSaver
 from datasets import LabeledDogHeartDataset, UnlabeledDogHeartDataset
-from losses import AggregateLoss
 from functional import plot_predictions, compute_vhs
 
 
@@ -24,7 +23,6 @@ class Trainer:
         train_dataset: Dataset,
         val_dataset: Dataset,
         optimizer: Optimizer,
-        loss_alpha: float,
         train_batch_size: int,
         val_batch_size: int,
         device: torch.device,
@@ -33,14 +31,13 @@ class Trainer:
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.optimizer = optimizer
-        self.loss_alpha = loss_alpha
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.device = device
 
         self.train_dataloader = DataLoader(dataset=train_dataset, batch_size=train_batch_size, shuffle=True)
         self.val_dataloader = DataLoader(dataset=val_dataset, batch_size=val_batch_size, shuffle=False)
-        self.loss_function = AggregateLoss(alpha=loss_alpha)
+        self.loss_function = nn.MSELoss(reduction='mean')
 
     def train(
         self, 
@@ -61,30 +58,25 @@ class Trainer:
         for epoch in range(1, n_epochs + 1):
             timer.start_epoch(epoch)
             # Loop through each batch
-            for batch, (batch_images, batch_sixpoints, batch_vhs, _, _) in enumerate(self.train_dataloader, start=1):
+            for batch, (batch_images, batch_sixpoints, *_) in enumerate(self.train_dataloader, start=1):
                 timer.start_batch(epoch, batch)
                 batch_images: torch.Tensor = batch_images.to(device=self.device)
                 batch_sixpoints: torch.Tensor = batch_sixpoints.to(device=self.device)
-                batch_vhs: torch.Tensor = batch_vhs.to(device=self.device)
                 self.optimizer.zero_grad()
                 pred_targets: torch.Tensor = self.model(input=batch_images)
                 print(f'gt_targets {batch_sixpoints[-1]}')
                 print(f'pred_targets {pred_targets[-1]}')
-                mse, cross_entropy, loss = self.loss_function(
-                    pred_points=pred_targets, gt_points=batch_sixpoints, gt_vhs=batch_vhs
-                )
+                loss = self.loss_function(input=pred_targets, target=batch_sixpoints)
                 loss.backward()
                 self.optimizer.step()
 
                 # Accumulate the metrics
-                train_metrics.add(mse=mse.item(), cross_entropy=cross_entropy.item(), loss=loss.item())
+                train_metrics.add(loss=loss.item())
                 timer.end_batch(epoch=epoch)
                 logger.log(
                     epoch=epoch, n_epochs=n_epochs, 
                     batch=batch, n_batches=len(self.train_dataloader), 
                     took=timer.time_batch(epoch, batch), 
-                    train_mse=train_metrics['mse'] / batch, 
-                    train_cross_entropy=train_metrics['cross_entropy'] / batch, 
                     train_loss=train_metrics['loss'] / batch, 
                 )
 
@@ -96,18 +88,16 @@ class Trainer:
             train_metrics.reset()
             
             # Evaluate
-            val_mse, val_cross_entropy, val_loss = self.evaluate()
+            val_loss = self.evaluate()
             timer.end_epoch(epoch)
             logger.log(
                 epoch=epoch, n_epochs=n_epochs, 
                 took=timer.time_epoch(epoch), 
-                val_mse=val_mse, 
-                val_cross_entropy=val_cross_entropy, 
                 val_loss=val_loss,
             )
             print('=' * 20)
 
-            early_stopping(val_cross_entropy)
+            early_stopping(val_loss)
             if early_stopping:
                 print('Early Stopped')
                 break
@@ -116,24 +106,21 @@ class Trainer:
         if checkpoint_path:
             checkpoint_saver.save(self.model, filename=f'epoch{epoch}.pt')
 
-    def evaluate(self) -> Tuple[float, float, float]:
+    def evaluate(self) -> float:
         metrics = Accumulator()
         self.model.eval()
         with torch.no_grad():
             # Loop through each batch
-            for batch, (batch_images, batch_sixpoints, batch_vhs, _, _) in enumerate(self.val_dataloader, start=1):
+            for batch, (batch_images, batch_sixpoints, *_) in enumerate(self.val_dataloader, start=1):
                 batch_images: torch.Tensor = batch_images.to(device=self.device)
                 batch_sixpoints: torch.Tensor = batch_sixpoints.to(device=self.device)
-                batch_vhs: torch.Tensor = batch_vhs.to(device=self.device)
                 pred_targets: torch.Tensor = self.model(input=batch_images)
-                mse, cross_entropy, loss = self.loss_function(
-                    pred_points=pred_targets, gt_points=batch_sixpoints, gt_vhs=batch_vhs
-                )
+                loss = self.loss_function(input=pred_targets, target=batch_sixpoints)
                 # Accumulate the metrics
-                metrics.add(val_mse=mse.item(), val_cross_entropy=cross_entropy.item(), val_loss=loss.item())
+                metrics.add(val_loss=loss.item())
 
         # Compute the aggregate metrics
-        return metrics['val_mse'] / batch, metrics['val_cross_entropy'] / batch, metrics['val_loss'] / batch
+        return metrics['val_loss'] / batch
 
 
 class Predictor:

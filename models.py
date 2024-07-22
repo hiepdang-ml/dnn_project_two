@@ -175,13 +175,13 @@ class VisionTransformer(nn.Module):
         self.encoder = TransformerEncoder(embedding_dim, n_heads, depth, dropout)
         self.orthogonalizer = OrthogonalLayer()
 
-        scale: float = self.patch_embedding.n_patches * embedding_dim
+        scale_pos: float = self.patch_embedding.n_patches * embedding_dim
         self.pos_embedding = nn.Parameter(
-            data=torch.rand(1, self.patch_embedding.n_patches, embedding_dim) / scale
+            data=torch.rand(1, self.patch_embedding.n_patches, embedding_dim) / scale_pos
         )
-        scale: float = self.patch_embedding.n_patches * embedding_dim * self.out_channels
+        scale_mlp: float = self.patch_embedding.n_patches * embedding_dim * self.out_channels
         self.mlp_head = nn.Parameter(
-            data=torch.rand(self.patch_embedding.n_patches, embedding_dim, self.out_channels) / scale
+            data=torch.rand(self.patch_embedding.n_patches, embedding_dim, self.out_channels) / scale_mlp
         )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
@@ -192,7 +192,7 @@ class VisionTransformer(nn.Module):
         output: torch.Tensor = output + self.pos_embedding
         output: torch.Tensor = self.encoder(output)
         assert output.shape == (batch_size, self.patch_embedding.n_patches, self.embedding_dim)
-        output: torch.Tensor = torch.sigmoid(torch.einsum('bne,neo->bo', output, self.mlp_head))
+        output: torch.Tensor = F.sigmoid(torch.einsum('bne,neo->bo', output, self.mlp_head))
         output: torch.Tensor = output.reshape(batch_size, 6, 2)
         return self.orthogonalizer(output)
         
