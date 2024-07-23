@@ -11,8 +11,8 @@ learning_rate: float = 1e-7 # 1e-7
 
 net = VisionTransformer(
     in_channels=3, patch_size=32, 
-    embedding_dim=2048, image_size=(512, 512),
-    depth=4, n_heads=16, dropout=0.,
+    embedding_dim=4096, image_size=(512, 512),
+    depth=16, n_heads=32, dropout=0.,
 )
 
 # net = torch.load(r'.checkpoints/epoch400.pt')
@@ -30,7 +30,7 @@ trainer = Trainer(
 )
 trainer.train(
     n_epochs=1000, 
-    patience=1000, tolerance=0., 
+    patience=100, tolerance=0., 
     checkpoint_path='.checkpoints'
 )
 
