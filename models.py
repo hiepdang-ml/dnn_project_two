@@ -179,7 +179,6 @@ class VisionTransformer(nn.Module):
         self.pos_embedding = nn.Parameter(
             data=torch.rand(1, self.patch_embedding.n_patches, embedding_dim) / scale_pos
         )
-        scale_mlp: float = self.patch_embedding.n_patches * embedding_dim * self.out_channels
         self.mlp_head = nn.Sequential(*[
             nn.Linear(in_features=self.patch_embedding.n_patches * embedding_dim, out_features=1024), nn.ReLU(), nn.Dropout(p=0.1),
             nn.Linear(in_features=1024, out_features=512), nn.ReLU(), nn.Dropout(p=0.1),
