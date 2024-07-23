@@ -5,7 +5,7 @@ from datasets import UnlabeledDogHeartDataset, LabeledDogHeartDataset
 from wokers import Predictor
 
 device: torch.device = torch.device('cuda')
-net = torch.load(f='.checkpoints/epoch88.pt')
+net = torch.load(f='.checkpoints/epoch460.pt')
 predictor = Predictor(model=net, device=device)
 
 

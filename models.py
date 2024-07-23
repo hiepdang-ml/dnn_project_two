@@ -180,9 +180,11 @@ class VisionTransformer(nn.Module):
             data=torch.rand(1, self.patch_embedding.n_patches, embedding_dim) / scale_pos
         )
         scale_mlp: float = self.patch_embedding.n_patches * embedding_dim * self.out_channels
-        self.mlp_head = nn.Parameter(
-            data=torch.rand(self.patch_embedding.n_patches, embedding_dim, self.out_channels) / scale_mlp
-        )
+        self.mlp_head = nn.Sequential(*[
+            nn.Linear(in_features=self.patch_embedding.n_patches * embedding_dim, out_features=1024), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(in_features=1024, out_features=512), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(in_features=512, out_features=self.out_channels),
+        ])
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         assert input.ndim == 4
@@ -192,12 +194,12 @@ class VisionTransformer(nn.Module):
         output: torch.Tensor = output + self.pos_embedding
         output: torch.Tensor = self.encoder(output)
         assert output.shape == (batch_size, self.patch_embedding.n_patches, self.embedding_dim)
-        output: torch.Tensor = torch.einsum('bne,neo->bo', output, self.mlp_head)
-        # output: torch.Tensor = F.sigmoid(torch.einsum('bne,neo->bo', output, self.mlp_head))
+        output: torch.Tensor = output.flatten(start_dim=1, end_dim=-1)
+        output: torch.Tensor = self.mlp_head(output).reshape(batch_size, 6, 2)
         output: torch.Tensor = output.reshape(batch_size, 6, 2)
         return self.orthogonalizer(output)
-        
-        
+
+
 
 if __name__ == '__main__':
     self = VisionTransformer(

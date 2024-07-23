@@ -80,7 +80,7 @@ class Trainer:
                 )
 
             # Ragularly save checkpoint
-            if checkpoint_path and epoch % 50 == 0:
+            if checkpoint_path and epoch % 5 == 0:
                 checkpoint_saver.save(self.model, filename=f'epoch{epoch}.pt')
             
             # Reset metric records for next epoch
